@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>明人不说瑞话</title>
+  <style>
+    /* 全局简约样式，适配手机+电脑 */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    body {
+      background-color: #fdf2f8;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+      color: #333;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      width: 100%;
+      max-width: 400px;
+    }
+    .title {
+      text-align: center;
+      font-size: 24px;
+      margin-bottom: 30px;
+      color: #e53e3e;
+    }
+    /* 计数卡片样式 */
+    .count-card {
+      margin-bottom: 25px;
+    }
+    .card-title {
+      font-size: 18px;
+      margin-bottom: 10px;
+      color: #4a5568;
+    }
+    .count-display {
+      font-size: 60px;
+      font-weight: bold;
+      text-align: center;
+      margin: 15px 0;
+      color: #e53e3e;
+    }
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-add {
+      background-color: #e53e3e;
+      color: white;
+    }
+    .btn-add:hover {
+      background-color: #c53030;
+    }
+    .btn-reset {
+      background-color: #e2e8f0;
+      color: #4a5568;
+    }
+    .btn-reset:hover {
+      background-color: #cbd5e1;
+    }
+    /* 待还次数模块 */
+    .debt-section {
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #f0f0f0;
+      text-align: center;
+    }
+    .debt-title {
+      font-size: 18px;
+      margin-bottom: 10px;
+      color: #4a5568;
+    }
+    .debt-display {
+      font-size: 28px;
+      font-weight: bold;
+      color: #9f7aea;
+    }
+    /* 底部重置所有按钮 */
+    .reset-all-btn {
+      margin-top: 30px;
+      background-color: #38b2ac;
+      color: white;
+    }
+    .reset-all-btn:hover {
+      background-color: #319795;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="title">明人不说瑞话</h1>
+
+    <!-- 我的喝水计数 -->
+    <div class="count-card">
+      <h2 class="card-title">明哥喝水次数</h2>
+      <div class="count-display" id="myCount">0</div>
+      <div class="btn-group">
+        <button class="btn btn-add" onclick="addMyCount()">+1 喝水啦</button>
+        <button class="btn btn-reset" onclick="resetMyCount()">当我没喝</button>
+      </div>
+    </div>
+
+    <!-- 女友喝水计数 -->
+    <div class="count-card">
+      <h2 class="card-title">瑞宝的喝水次数</h2>
+      <div class="count-display" id="herCount">0</div>
+      <div class="btn-group">
+        <button class="btn btn-add" onclick="addHerCount()">+1 喝水啦</button>
+        <button class="btn btn-reset" onclick="resetHerCount()">当我没喝</button>
+      </div>
+    </div>
+
+    <!-- 待还次数 -->
+    <div class="debt-section">
+      <h2 class="debt-title">已欠喝水次数</h2>
+      <div class="debt-display" id="debtCount">谁都不欠</div>
+    </div>
+
+    <!-- 重置所有 -->
+    <button class="btn reset-all-btn" onclick="resetAllCount()">地球爆炸</button>
+  </div>
+
+<!-- 使用 LeanCloud 官方国内 CDN（推荐！） -->
+<script src="https://cdn.leancloud.cn/sdk/4.17.0/av-min.js"></script>
+  <script>
+    // 初始化LeanCloud（你的凭证已填好，无需修改）
+    AV.init({
+      appId: "M8zwM2yOHUsaxGVqnJiS5tkF-gzGzoHsz",
+      appKey: "wjQzkjEjzoExbIeRAIVTvTn6",
+      serverURL: "https://m8zwm2yo.lc-cn-n1-shared.com"
+    });
+
+    // 定义数据模型
+    const DrinkRecord = AV.Object.extend('DrinkRecord');
+
+    // 页面加载获取最新数据（兼容Promise，避免async/await报错）
+    window.onload = function() {
+      const query = new AV.Query('DrinkRecord');
+      query.descending('createdAt');
+      query.first().then(function(result) {
+        if (result) {
+          const myCount = result.get('myCount') || 0;
+          const herCount = result.get('herCount') || 0;
+          document.getElementById('myCount').innerText = myCount;
+          document.getElementById('herCount').innerText = herCount;
+          updateDebtCount(myCount, herCount);
+        }
+      }).catch(function(err) {
+        console.log('加载数据提示：', err.message);
+      });
+    };
+
+    // 计算待还次数
+    function updateDebtCount(myCount, herCount) {
+      const debtDisplay = document.getElementById('debtCount');
+      const diff = Number(myCount) - Number(herCount);
+      if (diff === 0) {
+        debtDisplay.innerText = "谁都不欠";
+      } else if (diff > 0) {
+        debtDisplay.innerText = `瑞宝欠明哥 ${diff} 次喝水😜`;
+      } else {
+        debtDisplay.innerText = `明哥欠瑞宝 ${-diff} 次喝水🥺`;
+      }
+    }
+
+    // 明哥喝水+1（Promise写法，兼容所有环境）
+    function addMyCount() {
+      const query = new AV.Query('DrinkRecord');
+      query.descending('createdAt');
+      query.first().then(function(record) {
+        if (!record) record = new DrinkRecord();
+        const current = record.get('myCount') || 0;
+        const newCount = current + 1;
+        record.set('myCount', newCount);
+        return record.save();
+      }).then(function() {
+        // 更新页面显示
+        const herCount = document.getElementById('herCount').innerText;
+        const newMyCount = Number(document.getElementById('myCount').innerText) + 1;
+        document.getElementById('myCount').innerText = newMyCount;
+        updateDebtCount(newMyCount, herCount);
+      }).catch(function(err) {
+        alert('计数失败啦～试试刷新页面');
+        console.log('明哥计数错误：', err);
+      });
+    }
+
+    // 瑞宝喝水+1（完整定义，绝对不报错）
+    function addHerCount() {
+      const query = new AV.Query('DrinkRecord');
+      query.descending('createdAt');
+      query.first().then(function(record) {
+        if (!record) record = new DrinkRecord();
+        const current = record.get('herCount') || 0;
+        const newCount = current + 1;
+        record.set('herCount', newCount);
+        return record.save();
+      }).then(function() {
+        // 更新页面显示
+        const myCount = document.getElementById('myCount').innerText;
+        const newHerCount = Number(document.getElementById('herCount').innerText) + 1;
+        document.getElementById('herCount').innerText = newHerCount;
+        updateDebtCount(myCount, newHerCount);
+      }).catch(function(err) {
+        alert('计数失败啦～试试刷新页面');
+        console.log('瑞宝计数错误：', err);
+      });
+    }
+
+    // 重置明哥次数
+    function resetMyCount() {
+      const query = new AV.Query('DrinkRecord');
+      query.descending('createdAt');
+      query.first().then(function(record) {
+        if (record) {
+          record.set('myCount', 0);
+          return record.save();
+        }
+      }).then(function() {
+        document.getElementById('myCount').innerText = 0;
+        const herCount = document.getElementById('herCount').innerText;
+        updateDebtCount(0, herCount);
+      }).catch(function(err) {
+        console.log('重置明哥错误：', err);
+      });
+    }
+
+    // 重置瑞宝次数
+    function resetHerCount() {
+      const query = new AV.Query('DrinkRecord');
+      query.descending('createdAt');
+      query.first().then(function(record) {
+        if (record) {
+          record.set('herCount', 0);
+          return record.save();
+        }
+      }).then(function() {
+        document.getElementById('herCount').innerText = 0;
+        const myCount = document.getElementById('myCount').innerText;
+        updateDebtCount(myCount, 0);
+      }).catch(function(err) {
+        console.log('重置瑞宝错误：', err);
+      });
+    }
+
+    // 重置所有次数
+    function resetAllCount() {
+      if (!confirm('确定要清空所有喝水记录吗')) return;
+      const query = new AV.Query('DrinkRecord');
+      query.descending('createdAt');
+      query.first().then(function(record) {
+        if (record) {
+          record.set('myCount', 0);
+          record.set('herCount', 0);
+          return record.save();
+        }
+      }).then(function() {
+        document.getElementById('myCount').innerText = 0;
+        document.getElementById('herCount').innerText = 0;
+        updateDebtCount(0, 0);
+      }).catch(function(err) {
+        console.log('重置所有错误：', err);
+      });
+    }
+  </script>
+</body>
+</html>
